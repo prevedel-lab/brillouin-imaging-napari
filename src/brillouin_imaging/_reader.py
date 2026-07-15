@@ -5,7 +5,6 @@ It implements the Reader specification, but your plugin may choose to
 implement multiple readers or even other plugin contributions. see:
 https://napari.org/stable/plugins/building_a_plugin/guides.html#readers
 """
-from turtle import reset
 import napari.layers
 import numpy as np
 import os
@@ -242,4 +241,3 @@ def create_brim_widget(file: brim.File) -> Container:
     container = Container(widgets=[file_name_label,data_combo, analysis_results_combo, quantity_combo, peak_types_combo, add_image_btn, reset_btn])
 
     return container
-
