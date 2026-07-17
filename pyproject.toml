@@ -35,16 +35,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-testing = [
-    "tox",
+plotting = [
+    "matplotlib",
+]
+
+[dependency-groups]
+dev = [
+    "tox-uv",  # lets `tox`/`uv run tox` use uv as its testenv backend locally; CI's `uvx --with tox-gh-actions tox` doesn't request it, so it has no effect there
     "pytest",  # https://docs.pytest.org/en/latest/contents.html
     "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
     "pytest-qt",  # https://pytest-qt.readthedocs.io/en/latest/
     "napari[all]",
     "matplotlib",  # required to exercise SpectraTools plotting code paths
-]
-plotting = [
-    "matplotlib",
 ]
 
 [project.urls]
@@ -72,6 +74,15 @@ where = ["src"]
 [tool.setuptools_scm]
 write_to = "src/brillouin_imaging/_version.py"
 fallback_version = "0.0.1+nogit"
+
+
+[tool.uv]
+# Read automatically by astral-sh/setup-uv in CI (and by `uv` locally) when
+# no explicit `version:` input/flag is given, so the uv version used in CI
+# and by contributors stays in sync from one place instead of being
+# hardcoded separately in .github/workflows/test.yml.
+# https://docs.astral.sh/uv/reference/settings/#required-version
+required-version = ">=0.8"
 
 
 [tool.black]

@@ -40,11 +40,24 @@ code under `src/brillouin_imaging/` except as a last resort described under
   (`test_reader.py`, `test_sample_data.py`, `test_spectra_tools.py`) plus
   `conftest.py`. This mirrors the flat `src/brillouin_imaging` layout, so keep
   new test files at this same top level (no `_tests` subpackages needed here).
-- `pyproject.toml` `[project.optional-dependencies].testing` — `tox`,
-  `pytest`, `pytest-cov`, `pytest-qt`, `napari`, `pyqt5`. Add new test-only
-  dependencies (e.g. `hypothesis`) here if you introduce them.
+- `pyproject.toml` `[dependency-groups].dev` — `tox-uv`, `pytest`,
+  `pytest-cov`, `pytest-qt`, `napari[all]` (this is what pulls in a Qt
+  backend — there's no separate direct `pyqt5`/`pyqt6` dependency),
+  `matplotlib` (needed to exercise `SpectraTools`'s plotting code paths).
+  This is a PEP 735 dependency group, not a `[project.optional-dependencies]`
+  extra — it isn't installable via `pip install brillouin-imaging[dev]`
+  and isn't shipped in the built package; it only exists for tox/uv/pip to
+  read when setting up a dev or test environment. The `plotting` extra
+  under `[project.optional-dependencies]` is the separate, real
+  user-facing install option and is unaffected by this. Add new test-only
+  dependencies to the `dev` group if you introduce them.
+  `[tool.uv].required-version` pins the `uv` version CI installs — it's
+  read automatically by `astral-sh/setup-uv` in `test.yml` since that step
+  is given no explicit `version:` input, so the pin lives in one place
+  instead of being hardcoded separately in the workflow file.
 - `tox.ini` / `.github/workflows/test.yml` — CI actually runs the suite
-  *through* `tox`. `test.yml` provisions Python via
+  *through* `tox` (`tox.ini` already existed but wasn't wired up before;
+  now it is the real mechanism). `test.yml` provisions Python via
   `astral-sh/setup-uv`, sets up a real, working display and OpenGL
   context on every runner via a single `pyvista/setup-headless-display-action`
   step (`qt: true`, `wm: herbstluftwm`), then runs
@@ -73,11 +86,13 @@ code under `src/brillouin_imaging/` except as a last resort described under
   tox-gh-actions` rather than installed as a project dependency) map the
   job's Python version and `PLATFORM` env var to exactly one
   factor-conditioned environment (e.g. `py312-linux`), which installs this
-  package with the `testing` extra into an isolated virtualenv and runs
-  `pytest -v --color=yes --cov=brillouin_imaging --cov-report=xml` — so a
-  new test dependency only reaches CI if it's added to the `testing`
-  extra (see the bullet above), even if it's already installed in your own
-  dev environment.
+  package plus the `dev` dependency group (`dependency_groups = dev` in
+  `tox.ini` — tox resolves PEP 735 `[dependency-groups]` natively, no
+  extra plugin needed) into an isolated virtualenv, and runs `pytest -v
+  --color=yes --cov=brillouin_imaging --cov-report=xml` — so a new test
+  dependency only reaches CI if it's added to the `dev` group (see the
+  bullet above), even if it's already installed in your own dev
+  environment.
 
 ## Testing philosophy (from napari's guidelines)
 
@@ -307,8 +322,8 @@ evidence-backed hazards when writing or debugging tests on any OS:
    `QT_QPA_PLATFORM` env var is needed locally or in CI, since your own
    machine already has a real display and CI gets one from `test.yml`'s
    `pyvista/setup-headless-display-action` step. To reproduce exactly what
-   CI runs (an isolated env, the pinned `testing` extra, coverage), run
-   `tox` instead — or `tox -e py312-linux` (swap in whichever factor
+   CI runs (an isolated env, the pinned `dev` dependency group, coverage),
+   run `tox` instead — or `tox -e py312-linux` (swap in whichever factor
    matches your OS/Python) to check just one environment rather than
    building all of them. This matters most when something fails only in
    CI. Iterate until green. If a run ends with `Fatal Python error:
@@ -331,8 +346,8 @@ evidence-backed hazards when writing or debugging tests on any OS:
   exception is a *minimal, clearly-flagged* testability change (e.g.
   extracting a nested function so it can be called directly), and only when
   you call out explicitly that you made a production-code edit and why.
-- Don't add new test dependencies without adding them to the `testing` extra
-  in `pyproject.toml`.
+- Don't add new test dependencies without adding them to the `dev`
+  dependency group in `pyproject.toml`.
 - Don't silence or skip a failing test just to turn CI green; if a skip is
   genuinely appropriate (e.g. a platform limitation), use a real
   `pytest.mark.skip(reason=...)`/`skipif` with an honest reason, following the
