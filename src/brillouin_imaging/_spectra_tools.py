@@ -29,8 +29,6 @@ References:
 Replace code below according to your needs.
 """
 
-from cProfile import label
-from hmac import new
 from magicgui import magic_factory
 from magicgui.widgets import CheckBox, Container, create_widget
 import napari

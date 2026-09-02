@@ -29,10 +29,10 @@ code under `src/brillouin_imaging/` except as a last resort described under
 - `src/brillouin_imaging/_spectra_tools.py` — the *widget* contribution
   (`SpectraTools`, a `magicgui.widgets.Container` subclass wrapping a
   `QTabWidget`). Tabs: metadata inspection, click-to-plot spectrum (matplotlib
-  `FigureCanvas`), click to show VIPA raw data (only visible when the current 
-  .brimf file contains such data), spectral-image creation from a frequency range, and
-  labels-based regional spectra/statistics. It wires viewer mouse-drag and
-  layer-selection callbacks.
+  `FigureCanvas`), click to show VIPA raw data (only visible when the current
+  `.brim` file contains such data), spectral-image creation from a frequency
+  range, and labels-based regional spectra/statistics. It wires viewer
+  mouse-drag and layer-selection callbacks.
 - `src/brillouin_imaging/napari.yaml` — the plugin manifest wiring commands to
   readers/sample_data/widgets. If you add a new contribution-level test,
   cross-check it still matches this manifest.
@@ -45,54 +45,26 @@ code under `src/brillouin_imaging/` except as a last resort described under
   backend — there's no separate direct `pyqt5`/`pyqt6` dependency),
   `matplotlib` (needed to exercise `SpectraTools`'s plotting code paths).
   This is a PEP 735 dependency group, not a `[project.optional-dependencies]`
-  extra — it isn't installable via `pip install brillouin-imaging[dev]`
-  and isn't shipped in the built package; it only exists for tox/uv/pip to
-  read when setting up a dev or test environment. The `plotting` extra
-  under `[project.optional-dependencies]` is the separate, real
-  user-facing install option and is unaffected by this. Add new test-only
-  dependencies to the `dev` group if you introduce them.
-  `[tool.uv].required-version` pins the `uv` version CI installs — it's
-  read automatically by `astral-sh/setup-uv` in `test.yml` since that step
-  is given no explicit `version:` input, so the pin lives in one place
-  instead of being hardcoded separately in the workflow file.
-- `tox.ini` / `.github/workflows/test.yml` — CI actually runs the suite
-  *through* `tox` (`tox.ini` already existed but wasn't wired up before;
-  now it is the real mechanism). `test.yml` provisions Python via
-  `astral-sh/setup-uv`, sets up a real, working display and OpenGL
-  context on every runner via a single `pyvista/setup-headless-display-action`
-  step (`qt: true`, `wm: herbstluftwm`), then runs
-  `uvx --with tox-gh-actions tox` with `PLATFORM: ${{ matrix.os }}` set:
-  - **Linux**: the headless-display action installs Qt/X11 packages
-    (including `libxcb-cursor0`, required since Qt 6.5 to load the `xcb`
-    plugin at all) and starts a real Xvfb X server plus a window manager —
-    Qt runs against this real (virtual) display, not its `offscreen`
-    platform plugin.
-  - **Windows**: it installs Mesa3D, a software OpenGL implementation,
-    since the stock `windows-latest` GPU driver can't create a real OpenGL
-    context at all — this is what napari/vispy need internally (e.g.
-    `glGetParameter(GL_MAX_TEXTURE_SIZE)` when building the canvas).
-  - **macOS**: no extra setup — the runner's own display/GPU already
-    provides a working GL context.
-
-  Because a real GL context now exists everywhere, `conftest.py` doesn't
-  force or special-case `QT_QPA_PLATFORM` per OS, and doesn't monkeypatch
-  vispy layer add/remove — `make_napari_viewer()` and real
-  `viewer.add_image(...)`/`viewer.add_labels(...)` calls work unmodified
-  on every platform. `conftest.py` still registers a custom `qt` marker
-  for Qt-dependent tests.
-
-  `tox.ini`'s `[gh-actions]`/`[gh-actions:env]` tables (read by the
-  `tox-gh-actions` plugin, supplied ad hoc via `uvx --with
-  tox-gh-actions` rather than installed as a project dependency) map the
-  job's Python version and `PLATFORM` env var to exactly one
-  factor-conditioned environment (e.g. `py312-linux`), which installs this
-  package plus the `dev` dependency group (`dependency_groups = dev` in
-  `tox.ini` — tox resolves PEP 735 `[dependency-groups]` natively, no
-  extra plugin needed) into an isolated virtualenv, and runs `pytest -v
-  --color=yes --cov=brillouin_imaging --cov-report=xml` — so a new test
-  dependency only reaches CI if it's added to the `dev` group (see the
-  bullet above), even if it's already installed in your own dev
-  environment.
+  extra — add new test-only dependencies here, not to the user-facing
+  `plotting` extra. `[tool.uv].required-version` pins the `uv` version CI
+  installs, read automatically by `astral-sh/setup-uv` in `test.yml`.
+- `tox.ini` / `.github/workflows/test.yml` — CI runs the suite *through*
+  `tox`. `test.yml` provisions Python via `astral-sh/setup-uv`, then sets up
+  a real display and OpenGL context on every runner via
+  `pyvista/setup-headless-display-action` (Linux: Xvfb + a window manager;
+  Windows: Mesa3D software OpenGL, since the stock GPU driver can't create a
+  real GL context; macOS: no extra setup needed), then runs
+  `uvx --with tox-gh-actions tox` with `PLATFORM: ${{ matrix.os }}` set.
+  Because a real GL context exists everywhere, `conftest.py` doesn't
+  special-case `QT_QPA_PLATFORM` per OS or monkeypatch vispy —
+  `make_napari_viewer()` and real `viewer.add_image(...)`/
+  `viewer.add_labels(...)` calls work unmodified on every platform.
+  `conftest.py` also registers a custom `qt` marker for Qt-dependent tests.
+  `tox.ini`'s `[gh-actions]`/`[gh-actions:env]` tables map the job's Python
+  version and `PLATFORM` to one environment (e.g. `py312-linux`), which
+  installs this package plus the `dev` group and runs `pytest -v --color=yes
+  --cov=brillouin_imaging --cov-report=xml` — so a new test dependency only
+  reaches CI if it's added to the `dev` group.
 
 ## Testing philosophy (from napari's guidelines)
 
@@ -102,9 +74,9 @@ https://napari.org/stable/developers/contributing/testing.html. For this
 plugin specifically, follow
 https://napari.org/stable/plugins/testing_and_publishing/test.html:
 
-- **Prefer smaller unit tests over full integration tests.** Don't try to
-  drive a real mouse click through a real `Viewer` to test a callback — call
-  the callback method directly with a viewer/event double that has just the
+- **Prefer smaller unit tests over full integration tests.** Don't drive a
+  real mouse click through a real `Viewer` to test a callback — call the
+  callback method directly with a viewer/event double that has just the
   attributes your code reads (this repo's existing `MagicMock`-based tests
   already follow this pattern; keep doing so).
 - Use `make_napari_viewer` (available globally, no import needed) when a
@@ -133,209 +105,96 @@ https://napari.org/stable/plugins/testing_and_publishing/test.html:
   concrete state changes, call arguments, and return values, not just "no
   exception was raised."
 
-## Known repo-specific quirks — verify against current source, don't assume
+## Test-writing gotchas
+
+These reflect the source as of this writing. If something here doesn't match
+what you see in the code or tests, trust the code and treat this file as
+stale.
 
 - `src/brillouin_imaging/test.py` (`from napari import Viewer, run`) is a
-  manual smoke-launch script, not a pytest module — it lives outside `tests/`
-  and pytest won't collect it. Don't confuse it with the real suite, and
-  don't add assertions to it.
-- `_reader.py` has an unused `from turtle import reset` import, and
-  `_spectra_tools.py` has unused `from cProfile import label` and
-  `from hmac import new` imports. These look accidental (not real
-  dependencies on `turtle`/`cProfile`/`hmac`) — don't mock or test around
-  them as if they were intentional integrations; feel free to note them if
-  asked to clean up imports, but that's a source change, not a test change.
+  manual smoke-launch script, not a pytest module — its filename doesn't
+  match pytest's `test_*.py`/`*_test.py` collection patterns, so it's never
+  collected. Don't confuse it with the real suite or add assertions to it.
+- If you find unused imports don't mock or test around
+  them as if they were real integrations — flag them if asked to clean up
+  imports, but that's a source change, not a test change.
 - The sample-data functions perform real network I/O against S3/GCS-hosted
-  Zarr stores. Never let a test actually hit the network — mock
-  `reader_function` or `load_sample_data` as the existing
-  `tests/test_sample_data.py` already does, and keep it that way for any new
-  sample-data tests.
+  Zarr stores. Never let a test hit the network — mock `reader_function` or
+  `load_sample_data`, as `tests/test_sample_data.py` already does.
 - `create_brim_widget` and `SpectraTools` read/write real `brimfile` objects
   (`brim.File`, `brim.Data`, `brim.Data.AnalysisResults`, its `PeakType`/
-  `Quantity` enums). Build `MagicMock`/lightweight fake doubles for these
-  rather than constructing real `.brim.zip`/`.brim.zarr` fixtures — real
-  sample datasets are large, externally hosted scientific data and must
+  `Quantity` enums). Build `MagicMock`/lightweight fakes for these — real
+  `.brim` sample data is large, externally hosted scientific data and must
   never be checked into the repo or downloaded during tests.
 - `create_brim_widget`'s callback chain (`on_data_change` →
   `on_analysis_results_change` → `on_quantity_change`) both sets `.choices`/
   `.value` on the *next* combo box down the chain **and** explicitly calls
-  the next handler directly (the source comments call this out on purpose,
-  e.g. "call the analysis_results handler directly to update downstream
-  controls") — that's deliberate defensive redundancy, not a bug, so don't
-  report it as one. What *does* matter for testing: assigning `.value` on a
-  combo box goes through magicgui's Qt backend and can synchronously fire
-  that combo box's real, native Qt `changed` signal into the next handler
-  — so part of this chain runs through live Qt/PyQt6 signal dispatch, not
-  just plain Python calls. See "Known hazard" below before writing any test
-  that expects an exception to propagate up through this chain.
-
-## Known hazard: an exception raised inside a live Qt slot aborts the whole interpreter unless something catches it
-
-A prior generated test, `test_quantity_change_raises_for_invalid_peak_type`,
-made `list_existing_peak_types()` return a single unrecognized value (e.g.
-`['not_a_peak_type']`) so `on_quantity_change`'s final `else: raise
-ValueError(...)` branch would fire, then drove the whole
-`on_data_change → on_analysis_results_change → on_quantity_change` chain
-from the top with `widget.data_groups.changed.emit(None)` on a real,
-`qtbot`-managed widget, wrapped in `pytest.raises(psygnal.EmitLoopError)`.
-
-On macOS CI this crashed the whole pytest process — `Fatal Python error:
-Aborted` (SIGABRT), pytest exiting with code 134, killing the entire test
-*session*, not just that one test. It was fixed (commit `d4f9eb8`,
-"Fixed test crashing on Mac") purely as a test change — `_reader.py` was
-not touched.
-
-**Confirmed root cause**: in PyQt5 and PyQt6, an exception that escapes a slot/virtual
-method invoked from Qt's C++ layer calls `abort()` by default, crashing the
-interpreter, rather than propagating as a normal Python exception —
-see https://pytest-qt.readthedocs.io/en/latest/virtual_methods.html.
-`pytest-qt` normally protects every `@pytest.mark.qt` test from this
-automatically, by installing a global exception hook that turns such a
-crash into a clean, readable test failure instead. **This test opted out
-of that protection** with `@pytest.mark.qt_no_exception_capture` (present
-on the test, presumably added so `pytest.raises(EmitLoopError)` would see
-the exception directly) — which left nothing in place to intercept the
-`ValueError` once it happened to be raised from inside a slot invoked via
-a real, native Qt signal (part of this chain crosses into magicgui's Qt
-backend, `_mgui_set_choices`/`_emit_data`, because assigning `.value` on a
-combo box can synchronously fire that widget's real Qt `changed` signal —
-see the quirk above). `pytest.raises(...)` wrapped around the top-level
-`.emit(...)` call never got a chance to run — PyQt6 aborted the process
-first, at the point the exception tried to escape the live slot.
-
-**The actual fix**: keep driving the cascade the same way, but replace
-`pytest.raises(EmitLoopError)` with `qtbot.captureExceptions()` around the
-`.emit(...)` call (with a `try/except EmitLoopError` inside, appending to
-the captured list, as a fallback for the case where it *does* propagate
-directly). This restores, locally and manually, the same protection that
-`qt_no_exception_capture` had switched off globally, then asserts on the
-captured exception's `__cause__` afterward.
-
-Rules for any future test touching this chain, or any other place a magicgui
-`.changed` handler triggers a live Qt signal update:
-
-- **Never pair `@pytest.mark.qt_no_exception_capture` with
-  `pytest.raises(...)` around code that might raise inside a live Qt
-  slot.** Either drop the marker and let pytest-qt's automatic hook do its
-  job (it turns the abort into a normal failed assertion), or, if you need
-  the marker for another reason, wrap the triggering call in
-  `qtbot.captureExceptions()` yourself and assert on the captured list
-  afterward — mirror the pattern in the fix above.
-- **A fatal abort (`Fatal Python error: Aborted`, exit 134) in your own
-  test run might mean exactly this** — an exception escaped a live Qt slot with
-  no hook in place to catch it. The fix is `qtbot.captureExceptions()` (or
-  removing `qt_no_exception_capture`), not a broader `except`, not a
-  looser assertion, and not avoiding the widget cascade altogether.
-  Driving the real cascade is fine;
-  catching its exceptions the pytest-qt way is what matters.
-- This is a general PyQt5/6 + pytest-qt hazard, not specific to this
-  repo's callback chain or to macOS — any test that triggers a Qt slot
-  (via a real widget, `qtbot.mouseClick`, `.value =`, etc.) and expects an
-  exception raised inside it to surface needs one of the two mechanisms
-  above.
-- **A live example of this exact risk already exists in the suite**:
-  `test_add_image_button_recovers_on_missing_analysis_results` in
-  `tests/test_reader.py` drives the same kind of cascade (via
-  `add_image_btn.clicked.emit()` → the recovery path's `on_data_change()`
-  → a `.value =` assignment that *can* cross into a live Qt slot) wrapped
-  in a bare `pytest.raises(EmitLoopError)` — no `qtbot.captureExceptions`,
-  despite the test's own docstring claiming it uses one. It happens to be
-  safe today only because the mocked recovery scenario re-selects the same
-  combo value it already had, so no native signal actually fires this
-  time — change the mock/fixture data even slightly and this could crash
-  the interpreter exactly like the fixed test did. Fix it the same way (or
-  flag it) rather than assuming "it currently passes" means it's safe.
-
-## Known hazard: cross-platform Qt/vispy pitfalls to watch for
-
-One crash class is already fixed (macOS abort from `pytest.raises` vs a
-live Qt slot — see the dedicated section below). Be aware of these related,
-evidence-backed hazards when writing or debugging tests on any OS:
-
-- **A real GL context is used on every OS in CI, so real vispy/GL bugs can
-  surface directly** — there's no offscreen-mode or monkeypatch masking
-  them. Two known, evidence-backed examples from napari itself: a
-  *Windows*-specific bug in `_clean_and_update_scenegraph` calling
-  `glGetParameter` during layer-removal cleanup —
-  https://github.com/napari/napari/pull/8552 — and macOS-specific
-  segfaults tied to a specific PyQt6 patch release when opening images or
-  switching to 3D, which napari worked around by excluding that PyQt6
-  version outright (https://github.com/napari/napari/pull/6748) rather
-  than fixing it in their own code. If a test that adds/removes real
-  napari layers, switches to 3D/`ndisplay=3`, or takes
-  screenshots/thumbnails starts crashing or segfaulting on one OS only,
-  check whether it matches one of these known upstream issues (or a newer
-  one like them) before assuming it's a bug in this plugin.
-- **CI's virtual display can be slower than your local one.** Keep
-  `qtbot.waitSignal`/`qtbot.waitUntil` timeouts generous and
-  platform-agnostic rather than tuned to the fastest machine you happened
-  to test on, so CI doesn't flake where local runs don't.
-- **Windows temp-file cleanup can fail if a handle is still open.**
-  pytest's `tmp_path` cleanup can raise `PermissionError: [WinError 5/32]`
-  on Windows if something (a Qt widget, a backing-store file handle) still
-  holds the file open when the test ends — a well-known pytest-on-Windows
-  issue (https://github.com/pytest-dev/pytest/issues/7491,
-  https://github.com/pytest-dev/pytest/issues/6754). Low risk today since
-  this suite mocks `brim.File`/network I/O rather than writing real
-  `.brim` files, but keep it in mind if a future test starts writing and
-  reopening real files under `tmp_path` while a widget or mock is still
-  alive — close/dispose explicitly rather than relying on garbage
-  collection to release the handle before teardown.
-- **`SpectraTools` leaks real matplotlib figures — confirmed by actually
-  running the suite, not just research.** `SpectraTools.__init__` calls
-  `plt.subplots()` three times, which registers each figure (and its Qt
-  `FigureCanvas`) with pyplot's global figure manager; nothing ever closed
-  them. A full `pytest tests/` run surfaced `UserWarning: More than 20
-  figures have been opened` partway through `test_spectra_tools.py`, and
-  the run measurably sped up once fixed (accumulated Qt canvases add up
-  over a session, not just matplotlib memory). Fixed with an autouse
-  `_close_matplotlib_figures` fixture in `conftest.py` (`plt.close("all")`
-  after every test, guarded for `ImportError` since matplotlib is
-  optional here). If you add a test that constructs `SpectraTools` (or
-  any widget that calls `plt.subplots()`/`plt.figure()`), you don't need
-  to close figures yourself — this fixture already covers it — but if you
-  add a *new* matplotlib-figure-creating code path outside `SpectraTools`,
-  don't assume it's covered without checking this fixture still catches
-  it.
+  the next handler directly — deliberate defensive redundancy (see the
+  source comments), not a bug. What matters for testing: assigning `.value`
+  on a combo box goes through magicgui's Qt backend and can synchronously
+  fire that combo box's real, native Qt `changed` signal, so part of this
+  chain runs through live Qt signal dispatch, not just plain Python calls.
+- **An exception raised inside a live Qt slot aborts the whole interpreter**
+  (`Fatal Python error: Aborted`, exit 134) **unless something catches it.**
+  This is a general PyQt5/6 + pytest-qt behavior
+  (https://pytest-qt.readthedocs.io/en/latest/virtual_methods.html), relevant
+  any time a test drives the callback chain above, or any other magicgui
+  `.changed` handler that can trigger a live Qt signal. `pytest-qt` protects
+  every `@pytest.mark.qt` test from this automatically via a global exception
+  hook — **never pair `@pytest.mark.qt_no_exception_capture` with a bare
+  `pytest.raises(...)`** around code that might raise inside a live Qt slot,
+  since that combination disables the hook with nothing in its place.
+  Instead wrap the triggering call in `qtbot.captureExceptions()` and assert
+  on the captured list afterward — `test_quantity_change_raises_for_invalid_peak_type`
+  and `test_add_image_button_recovers_on_missing_analysis_results` in
+  `tests/test_reader.py` are the reference pattern. A fatal abort instead of
+  a normal pytest pass/fail summary is the signature of this class of bug.
+- CI gives every OS a real GL context (no `offscreen` platform plugin, no
+  monkeypatching), so genuine vispy/GL bugs can surface directly. If a test
+  that adds/removes real napari layers, switches to 3D, or takes screenshots
+  starts crashing on exactly one OS, check whether it matches a known
+  upstream napari/vispy issue (e.g. napari/napari#8552, napari/napari#6748)
+  before assuming it's a bug in this plugin.
+- CI's virtual display can be slower than your local one — keep
+  `qtbot.waitSignal`/`qtbot.waitUntil` timeouts generous and platform-agnostic
+  rather than tuned to your fastest local run.
+- `SpectraTools.__init__` creates three real matplotlib figures via
+  `plt.subplots()`. `conftest.py`'s autouse `_close_matplotlib_figures`
+  fixture already closes them after every test, so you don't need to do this
+  yourself — but if you add a *new* matplotlib-figure-creating code path
+  outside `SpectraTools`, verify this fixture still covers it.
+- Windows: pytest's `tmp_path` cleanup can raise `PermissionError` if a Qt
+  widget or file handle is still open when a test ends (a known
+  pytest-on-Windows issue, e.g. pytest-dev/pytest#7491 and #6754). Low risk
+  today since this suite mocks `brim.File`/network I/O rather than writing
+  real files, but close/dispose explicitly if a future test writes and
+  reopens real files under `tmp_path`.
 
 ## Workflow
 
 1. **Read before you write.** Open the full source file you're testing and
-   the existing test file for that module (if any) before adding tests — match
-   established naming/structure (one `Test<ThingUnderTest>` class per
-   function/class, one `test_<behavior>` method per case, short docstring
-   describing what's verified) and avoid duplicating existing cases.
-2. **Find the gap.** Compare what's exercised today against the module's
-   branches: e.g. in `_reader.py`, the `create_brim_widget` callback chain
-   (`on_data_change`, `on_analysis_results_change`, `on_quantity_change`,
-   `on_add_image_btn_pressed`) and its error paths; in `_spectra_tools.py`,
-   `_on_create_spectral_image`, `_plot_labels_spectrum`, `_load_spectrum`,
-   `_create_labels_layer`, `_update_labels_combobox`, `_update_metadata_table`,
-   and the drag-vs-click branching inside `_connect_mouse_events`/`on_click`
-   currently look under-tested relative to the widget-structure/
-   initialization tests that exist.
+   the existing test file for that module before adding tests — match the
+   existing grouping (one test class per widget/behavior area, `test_<behavior>`
+   methods with a short docstring) and avoid duplicating existing cases.
+2. **Find the gap.** Don't assume which functions are under-tested — search
+   the relevant test file for the function/branch name first. Compare what's
+   actually exercised against the module's branches (error paths, edge cases,
+   less-common combinations), not just the happy path.
 3. **Write isolated tests first**, reaching for `make_napari_viewer` +
    `qtbot` only when GUI wiring itself (widget tree shape, visibility, signal
    connections) is what's actually under test.
-4. **Run the suite** after every meaningful change. For quick iteration in
-   your existing environment, plain `pytest tests/ -v` works — no
-   `QT_QPA_PLATFORM` env var is needed locally or in CI, since your own
-   machine already has a real display and CI gets one from `test.yml`'s
-   `pyvista/setup-headless-display-action` step. To reproduce exactly what
-   CI runs (an isolated env, the pinned `dev` dependency group, coverage),
-   run `tox` instead — or `tox -e py312-linux` (swap in whichever factor
-   matches your OS/Python) to check just one environment rather than
-   building all of them. This matters most when something fails only in
-   CI. Iterate until green. If a run ends with `Fatal Python error:
-   Aborted`/an exit code like 134 instead of a normal pytest pass/fail
-   summary, that might be an exception escaping a live Qt slot with no
-   hook to catch it (see "Known hazard" above) — check for
-   `@pytest.mark.qt_no_exception_capture` paired with a bare
-   `pytest.raises(...)`, and fix it with `qtbot.captureExceptions()`
-   rather than changing what exception type you assert on.
-5. **Don't paper over failures.** If a test fails because it's stale, fix the test to match current, correct
-   behavior. If a test fails because the source has a genuine bug, report it
-   clearly instead of loosening the assertion to match the bug.
+4. **Run the suite** after every meaningful change. `pytest tests/ -v` works
+   for quick local iteration — no `QT_QPA_PLATFORM` override needed, locally
+   or in CI. To reproduce exactly what CI runs (isolated env, pinned `dev`
+   group, coverage), use `tox`, or `tox -e py312-linux` (swap in your
+   OS/Python) to check just one environment. Iterate until green. A fatal
+   abort instead of a normal pass/fail summary usually means the live-Qt-slot
+   exception hazard above — check for `@pytest.mark.qt_no_exception_capture`
+   paired with a bare `pytest.raises(...)`.
+5. **Don't paper over failures.** If a test fails because it's stale, fix the
+   test to match current, correct behavior. If a test fails because the
+   source has a genuine bug, report it clearly instead of loosening the
+   assertion to match the bug.
 6. **Report coverage gaps** you notice but didn't fill (with file/function
    names) so a human can prioritize, rather than silently skipping them.
 
